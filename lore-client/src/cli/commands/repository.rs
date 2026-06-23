@@ -1373,13 +1373,56 @@ pub fn handle_repository_dump(
 pub fn handle_repository_gc(globals: LoreGlobalArgs) -> u8 {
     let args = LoreRepositoryGcArgs {};
 
-    let _spinner = ProgressBar::new_spinner("Running GC...");
+    // Progress events arrive one per evicted bucket / compacted group. Show a single
+    // in-place bar with the running total instead of a line per event, then print the
+    // final totals once on completion so the result survives the bar being cleared.
+    let bar = ProgressBar::new_spinner("Running GC...");
+    let evicted = AtomicU64::new(0);
+    let reclaimed = AtomicU64::new(0);
 
     let callback = output_formatter().unwrap_or(Some(
         (Box::new(move |event: &LoreEvent| match event {
-            LoreEvent::Complete(_) => {}
+            LoreEvent::Complete(_) => {
+                println!(
+                    "Garbage collection complete: compaction reclaimed {}, eviction removed {} fragments",
+                    format_bytes_to_string(reclaimed.load(Ordering::Relaxed)),
+                    evicted.load(Ordering::Relaxed)
+                );
+            }
             LoreEvent::Maintenance(data) => {
                 util::handle_maintenance_event(data);
+            }
+            LoreEvent::CompactionBegin(data) => {
+                reclaimed.store(0, Ordering::Relaxed);
+                bar.set_message(format!(
+                    "Compacting (target {})",
+                    format_bytes_to_string(data.target_bytes)
+                ));
+            }
+            LoreEvent::CompactionProgress(data) => {
+                let total = reclaimed.fetch_add(data.compacted_bytes, Ordering::Relaxed)
+                    + data.compacted_bytes;
+                bar.set_message(format!(
+                    "Compacting: {} reclaimed",
+                    format_bytes_to_string(total)
+                ));
+            }
+            LoreEvent::CompactionEnd(data) => {
+                reclaimed.store(data.total_compacted_bytes, Ordering::Relaxed);
+            }
+            LoreEvent::EvictionBegin(data) => {
+                evicted.store(0, Ordering::Relaxed);
+                bar.set_message(format!(
+                    "Evicting (target {} fragments)",
+                    data.target_fragments
+                ));
+            }
+            LoreEvent::EvictionProgress(data) => {
+                let total = evicted.fetch_add(data.evicted, Ordering::Relaxed) + data.evicted;
+                bar.set_message(format!("Evicting: {total} fragments"));
+            }
+            LoreEvent::EvictionEnd(data) => {
+                evicted.store(data.total_evicted, Ordering::Relaxed);
             }
             _ => (),
         }) as EventCallbackFn)

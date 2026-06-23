@@ -4559,12 +4559,12 @@ mod open_tests {
         assert!(take_opened(&events).is_none());
     }
 
-    /// Open a disk-backed handle with `gc=1` and explicit `cache_target_*` values. The
-    /// underlying evictor's internal floor prevents the targets from being arbitrarily small,
-    /// so this test is structural — verify that the handle accepts the field, the spawn does
-    /// not panic, the handle survives an op cycle, and the close path tears the spawned tasks
-    /// down cleanly (proves the spawn happened — without spawn, `compact_stop` would have no
-    /// counterpart to stop).
+    /// Open a disk-backed handle with explicit `cache_target_*` values, which enable the
+    /// handle's incremental GC. The underlying evictor's internal floor prevents the targets
+    /// from being arbitrarily small, so this test is structural — verify that the handle
+    /// accepts the fields, the spawn does not panic, the handle survives an op cycle, and the
+    /// close path tears the spawned tasks down cleanly (proves the spawn happened — without
+    /// spawn, `compact_stop` would have no counterpart to stop)
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn open_with_gc_and_cache_target_round_trips_an_op_cycle() {
         use lore_base::types::Context;
@@ -4575,8 +4575,7 @@ mod open_tests {
         create_repo(repo_path).await;
 
         let (open_sink, open_cb) = make_sink();
-        let mut g = globals();
-        g.gc = 1;
+        let g = globals();
         let status = open::open(
             g,
             LoreStorageOpenArgs {
@@ -4589,7 +4588,7 @@ mod open_tests {
             open_cb,
         )
         .await;
-        assert_eq!(status, 0, "open with gc=1 and cache_target_* must succeed");
+        assert_eq!(status, 0, "open with cache_target_* must succeed");
         let id = take_opened(&open_sink.lock().unwrap()).expect("open should have emitted Opened");
         let handle = lore::storage::handle::LoreStore { handle_id: id };
 
@@ -4739,9 +4738,10 @@ mod open_tests {
         );
     }
 
-    /// Open with `gc=0`: no evictor or compactor is spawned. Putting many fragments must not
-    /// cause the count to drop. We verify the negative — fragment count climbs and stays —
-    /// to prove the evictor is genuinely off (rather than just slow).
+    /// Open with `no_gc=1`: no evictor or compactor is spawned even though `cache_target_*`
+    /// are set. Putting many fragments must not cause the count to drop. We verify the
+    /// negative — fragment count climbs and stays — to prove the evictor is genuinely off
+    /// (rather than just slow).
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn open_without_gc_does_not_spawn_evictor() {
         use lore_base::types::Context;
@@ -4753,7 +4753,7 @@ mod open_tests {
 
         let (open_sink, open_cb) = make_sink();
         let mut g = globals();
-        g.gc = 0;
+        g.no_gc = 1;
         let status = open::open(
             g,
             LoreStorageOpenArgs {
@@ -4807,7 +4807,7 @@ mod open_tests {
         let count = immutable.fragment_count().await.unwrap_or(0);
         assert!(
             count >= 16,
-            "with gc=0 no evictor should run; expected >= 16 fragments, got {count}",
+            "with no_gc=1 no evictor should run; expected >= 16 fragments, got {count}",
         );
 
         let (_, close_cb) = make_sink();

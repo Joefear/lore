@@ -1025,18 +1025,20 @@ async fn create_local_store(
     let default_settings = lore_storage::local::immutable_store::ImmutableStoreSettings::default();
     let store_path = resolve_local_store_path(&settings.path, "immutable");
 
-    lore_storage::local::immutable_store::create(
+    let options = ImmutableStoreCreateOptions {
+        max_capacity: settings.max_capacity,
+        eviction_delay: settings
+            .eviction_delay
+            .map(|ms| std::time::Duration::from_millis(ms as u64)),
+        max_size: settings.max_size,
+        compaction_delay: settings
+            .compaction_delay
+            .map(|ms| std::time::Duration::from_millis(ms as u64)),
+    };
+
+    let store = lore_storage::local::immutable_store::create(
         Some(store_path.as_path()),
-        ImmutableStoreCreateOptions {
-            max_capacity: settings.max_capacity,
-            eviction_delay: settings
-                .eviction_delay
-                .map(|ms| std::time::Duration::from_millis(ms as u64)),
-            max_size: settings.max_size,
-            compaction_delay: settings
-                .compaction_delay
-                .map(|ms| std::time::Duration::from_millis(ms as u64)),
-        },
+        options,
         true,  /* Server mode, deserialize all buckets immediately */
         lore_storage::local::immutable_store::ImmutableStoreSettings {
             allow_partial_fragment: false, /* Server mode, partial fragments not allowed */
@@ -1051,8 +1053,14 @@ async fn create_local_store(
             atime: false,
             initial_fan_out_level: lore_storage::local::fan_out::FAN_OUT_LEVEL_MAX, /* Server mode, full 256-bucket layout from the start */
             fan_out_threshold: lore_storage::local::fan_out::FAN_OUT_THRESHOLD_DEFAULT,
-        }
-    ).await.map_err(anyhow::Error::from)
+        },
+    )
+    .await
+    .map_err(anyhow::Error::from)?;
+
+    lore_storage::maintenance::spawn_gc(&store, &options);
+
+    Ok(store)
 }
 
 async fn configure_local_immutable_store(

@@ -222,7 +222,7 @@ class Lore:
         compress_limit: int | None = None,
         search_limit: int | None = None,
         search_nearest: bool = False,
-        gc: bool = False,
+        no_gc: bool = False,
         non_interactive: bool = False,
     ):
         if urc_args is None:
@@ -256,7 +256,7 @@ class Lore:
             + (["--compress-limit", str(compress_limit)] if compress_limit else [])
             + (["--search-limit", str(search_limit)] if search_limit else [])
             + (["--search-nearest"] if search_nearest else [])
-            + (["--gc"] if gc else [])
+            + (["--no-gc"] if no_gc else [])
             + (["--non-interactive"] if non_interactive else [])
             + urc_args
         )
@@ -2439,7 +2439,7 @@ class GlobalOptionsParseable(TypedDict, total=False):
     compress_limit: int
     search_limit: int
     search_nearest: bool
-    gc: bool
+    no_gc: bool
 
 
 class GlobalOptions(TypedDict, total=False):
@@ -2462,5 +2462,5 @@ class GlobalOptions(TypedDict, total=False):
     compress_limit: int
     search_limit: int
     search_nearest: bool
-    gc: bool
+    no_gc: bool
     non_interactive: bool

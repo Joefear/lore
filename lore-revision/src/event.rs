@@ -443,6 +443,60 @@ pub struct LoreMaintenanceEventData {
     pub message: LoreString,
 }
 
+/// Data for the start of a store eviction pass.
+#[repr(C)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LoreEvictionBeginEventData {
+    /// Fragment capacity the pass is reducing the store toward.
+    pub target_fragments: u64,
+}
+
+/// Data for one bucket evicted during a store eviction pass.
+#[repr(C)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LoreEvictionProgressEventData {
+    /// Fragments evicted from this bucket.
+    pub evicted: u64,
+}
+
+/// Data for the end of a store eviction pass.
+#[repr(C)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LoreEvictionEndEventData {
+    /// Total fragments evicted across the pass.
+    pub total_evicted: u64,
+}
+
+/// Data for the start of a store compaction pass.
+#[repr(C)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LoreCompactionBeginEventData {
+    /// Store size in bytes the pass is reducing the store toward.
+    pub target_bytes: u64,
+}
+
+/// Data for one group compacted during a store compaction pass.
+#[repr(C)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LoreCompactionProgressEventData {
+    /// Bytes reclaimed from this group.
+    pub compacted_bytes: u64,
+}
+
+/// Data for the end of a store compaction pass.
+#[repr(C)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LoreCompactionEndEventData {
+    /// Total bytes reclaimed across the pass.
+    pub total_compacted_bytes: u64,
+}
+
 /// cbindgen:prefix-with-name
 /// cbindgen:rename-all=ScreamingSnakeCase
 /// An event delivered to a callback. Each variant names a kind of event and
@@ -881,6 +935,18 @@ pub enum LoreEvent {
     RevisionTreeCommitComplete(LoreRevisionTreeCommitCompleteEventData),
     /// A close call completed.
     RevisionTreeCloseComplete(LoreRevisionTreeCloseCompleteEventData),
+    /// A store eviction pass began.
+    EvictionBegin(LoreEvictionBeginEventData),
+    /// One bucket was evicted during a store eviction pass.
+    EvictionProgress(LoreEvictionProgressEventData),
+    /// A store eviction pass ended.
+    EvictionEnd(LoreEvictionEndEventData),
+    /// A store compaction pass began.
+    CompactionBegin(LoreCompactionBeginEventData),
+    /// One group was compacted during a store compaction pass.
+    CompactionProgress(LoreCompactionProgressEventData),
+    /// A store compaction pass ended.
+    CompactionEnd(LoreCompactionEndEventData),
 }
 
 impl LoreEvent {

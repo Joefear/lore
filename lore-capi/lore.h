@@ -2628,6 +2628,42 @@ typedef struct lore_revision_tree_close_complete_event_data_t {
   enum lore_error_code_t error_code;
 } lore_revision_tree_close_complete_event_data_t;
 
+// Data for the start of a store eviction pass.
+typedef struct lore_eviction_begin_event_data_t {
+  // Fragment capacity the pass is reducing the store toward.
+  uint64_t target_fragments;
+} lore_eviction_begin_event_data_t;
+
+// Data for one bucket evicted during a store eviction pass.
+typedef struct lore_eviction_progress_event_data_t {
+  // Fragments evicted from this bucket.
+  uint64_t evicted;
+} lore_eviction_progress_event_data_t;
+
+// Data for the end of a store eviction pass.
+typedef struct lore_eviction_end_event_data_t {
+  // Total fragments evicted across the pass.
+  uint64_t total_evicted;
+} lore_eviction_end_event_data_t;
+
+// Data for the start of a store compaction pass.
+typedef struct lore_compaction_begin_event_data_t {
+  // Store size in bytes the pass is reducing the store toward.
+  uint64_t target_bytes;
+} lore_compaction_begin_event_data_t;
+
+// Data for one group compacted during a store compaction pass.
+typedef struct lore_compaction_progress_event_data_t {
+  // Bytes reclaimed from this group.
+  uint64_t compacted_bytes;
+} lore_compaction_progress_event_data_t;
+
+// Data for the end of a store compaction pass.
+typedef struct lore_compaction_end_event_data_t {
+  // Total bytes reclaimed across the pass.
+  uint64_t total_compacted_bytes;
+} lore_compaction_end_event_data_t;
+
 // An event delivered to a callback. Each variant names a kind of event and
 // carries the data for that event.
 enum lore_event_id_t {
@@ -3057,6 +3093,18 @@ enum lore_event_id_t {
   LORE_EVENT_REVISION_TREE_COMMIT_COMPLETE,
   // A close call completed.
   LORE_EVENT_REVISION_TREE_CLOSE_COMPLETE,
+  // A store eviction pass began.
+  LORE_EVENT_EVICTION_BEGIN,
+  // One bucket was evicted during a store eviction pass.
+  LORE_EVENT_EVICTION_PROGRESS,
+  // A store eviction pass ended.
+  LORE_EVENT_EVICTION_END,
+  // A store compaction pass began.
+  LORE_EVENT_COMPACTION_BEGIN,
+  // One group was compacted during a store compaction pass.
+  LORE_EVENT_COMPACTION_PROGRESS,
+  // A store compaction pass ended.
+  LORE_EVENT_COMPACTION_END,
 };
 typedef uint32_t lore_event_tag_t;
 
@@ -3276,6 +3324,12 @@ typedef struct lore_event_t {
     struct lore_revision_tree_metadata_get_complete_event_data_t revision_tree_metadata_get_complete;
     struct lore_revision_tree_commit_complete_event_data_t revision_tree_commit_complete;
     struct lore_revision_tree_close_complete_event_data_t revision_tree_close_complete;
+    struct lore_eviction_begin_event_data_t eviction_begin;
+    struct lore_eviction_progress_event_data_t eviction_progress;
+    struct lore_eviction_end_event_data_t eviction_end;
+    struct lore_compaction_begin_event_data_t compaction_begin;
+    struct lore_compaction_progress_event_data_t compaction_progress;
+    struct lore_compaction_end_event_data_t compaction_end;
   };
 } lore_event_t;
 
@@ -3305,8 +3359,8 @@ typedef struct lore_global_args_t {
   uint32_t search_limit;
   // Allow matching to the nearest matching revision when a perfect match is not available
   uint8_t search_nearest;
-  // Run store compaction and eviction in the background
-  uint8_t gc;
+  // Prevent the automatic incremental/step GC for this operation; it otherwise runs in the background on write operations. `repository gc` always runs a full pass regardless
+  uint8_t no_gc;
   // Use in-memory stores instead of file-backed stores. No store data is
   // read from or written to the .urc/immutable/ and .urc/mutable/ directories.
   uint8_t in_memory;
@@ -4286,11 +4340,12 @@ typedef struct lore_storage_open_args_t {
   struct lore_storage_remote_config_t remote_config;
   // Activate `remote_config`; otherwise the handle has no remote
   uint8_t has_remote_config;
-  // Soft cap on total immutable-store bytes (compactor target); honored only when `globals.gc`
-  // is set. `0` selects the default; shared disk backends inherit the first opener's value
+  // Soft cap on total immutable-store bytes (compactor target). A non-zero cache target enables
+  // incremental background GC for the handle; `0` then selects the default. Shared disk backends
+  // inherit the first opener's value
   uint64_t cache_target_bytes;
-  // Soft cap on immutable-store fragment count (evictor target); honored only when `globals.gc`
-  // is set. `0` selects the default
+  // Soft cap on immutable-store fragment count (evictor target). A non-zero cache target enables
+  // incremental background GC for the handle; `0` then selects the default
   uint64_t cache_target_fragments;
 } lore_storage_open_args_t;
 
